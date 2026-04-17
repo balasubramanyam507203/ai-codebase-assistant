@@ -1,13 +1,13 @@
 import os
 import streamlit as st
 from src.ingest import ingest_codebase
-from src.rag_chain import build_code_explainer_chain, build_rag_chain
+from src.agent import build_agent
 
 
 st.set_page_config(page_title="AI Codebase Assistant", layout="wide")
 
 st.title("AI Codebase Assistant")
-st.subheader("Step 3: RAG over Codebase")
+st.subheader("Step 4: Agent-based Code Assistant")
 
 st.sidebar.header("Codebase Indexing")
 
@@ -23,58 +23,56 @@ if st.sidebar.button("Index Codebase"):
     except Exception as e:
         st.sidebar.error(f"Indexing error: {e}")
 
-mode = st.radio(
-    "Choose Mode",
-    ["Explain Pasted Code", "Ask Codebase Questions"]
+task_type = st.selectbox(
+    "What do you want to do?",
+    [
+        "Explain pasted code",
+        "Ask about indexed codebase",
+        "Find bugs in pasted code"
+    ]
 )
 
-if mode == "Explain Pasted Code":
-    st.write("Paste a code snippet and ask what it does.")
+user_input = ""
+code_input = ""
 
+if task_type == "Explain pasted code":
     code_input = st.text_area("Paste your code here", height=300)
-    question = st.text_input("Ask a question about the code", value="Explain this code clearly")
+    user_input = f"Explain this pasted code clearly:\n\n{code_input}"
 
-    if st.button("Explain Code"):
-        if not code_input.strip():
-            st.warning("Please paste some code first.")
-        else:
-            try:
-                chain = build_code_explainer_chain()
-                response = chain.invoke({
-                    "question": question,
-                    "code": code_input
-                })
-                st.success("Explanation generated")
-                st.write(response)
-            except Exception as e:
-                st.error(f"Error: {e}")
-
-else:
-    st.write("Ask questions about the indexed codebase.")
-
-    codebase_question = st.text_input(
-        "Ask about the codebase",
+elif task_type == "Ask about indexed codebase":
+    question = st.text_input(
+        "Ask a codebase question",
         value="Where is login logic defined?"
     )
+    user_input = question
 
-    if st.button("Ask Codebase"):
-        try:
-            if not os.path.exists("vectorstore/faiss_index"):
-                st.warning("Please index the codebase first.")
-            else:
-                rag_chain = build_rag_chain()
-                answer, docs = rag_chain(codebase_question)
+else:
+    code_input = st.text_area("Paste code to check for bugs", height=300)
+    user_input = f"Find possible bugs, risks, bad practices, edge cases, and security issues in this code:\n\n{code_input}"
 
-                st.success("Answer generated")
-                st.write(answer)
+if st.button("Run Assistant"):
+    try:
+        if task_type == "Ask about indexed codebase" and not os.path.exists("vectorstore/faiss_index"):
+            st.warning("Please index the codebase first.")
 
-                st.subheader("Sources")
-                shown = set()
-                for doc in docs:
-                    source = doc.metadata.get("source", "unknown")
-                    if source not in shown:
-                        st.write(f"- {source}")
-                        shown.add(source)
+        elif task_type != "Ask about indexed codebase" and not code_input.strip():
+            st.warning("Please paste code first.")
 
-        except Exception as e:
-            st.error(f"Error: {e}")
+        else:
+            agent = build_agent()
+
+            response = agent.invoke(
+                {
+                    "messages": [
+                        {"role": "user", "content": user_input}
+                    ]
+                }
+            )
+
+            st.success("Response generated")
+
+            final_message = response["messages"][-1]
+            st.write(final_message.content)
+
+    except Exception as e:
+        st.error(f"Error: {e}")
