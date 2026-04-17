@@ -1,11 +1,11 @@
 import streamlit as st
-from src.llm import get_llm
+from src.rag_chain import build_code_explainer_chain
 
 
 st.set_page_config(page_title="AI Codebase Assistant", layout="wide")
 
 st.title("AI Codebase Assistant")
-st.subheader("Step 1: Basic Code Explanation")
+st.subheader("Step 2: LangChain Code Explanation")
 
 st.write("Paste a code snippet and ask what it does.")
 
@@ -17,24 +17,15 @@ if st.button("Explain Code"):
         st.warning("Please paste some code first.")
     else:
         try:
-            llm = get_llm()
+            chain = build_code_explainer_chain()
 
-            prompt = f"""
-You are a helpful coding assistant.
-
-Explain the following code in a beginner-friendly way.
-
-User question:
-{question}
-
-Code:
-{code_input}
-"""
-
-            response = llm.invoke(prompt)
+            response = chain.invoke({
+                "question": question,
+                "code": code_input
+            })
 
             st.success("Explanation generated")
-            st.write(response.content)
+            st.write(response)
 
         except Exception as e:
             st.error(f"Error: {e}")
